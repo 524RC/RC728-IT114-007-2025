@@ -16,13 +16,26 @@ public class Problem1 extends BaseClass {
         System.out.print("Output Array: ");
         // Start Solution Edits
         
-
+        //Rc728 9/29/2025
+        // it runs through the loops and checks if the items within it are odd through the %2!=0
+        // then it prints array[x] + ", "
+        
+        boolean run = true;
+        for(int x = 0; x < arr.length; x++){
+            if(arr[x] % 2 != 0){
+                if(!run){
+                    System.out.print(", ");
+                }
+                System.out.print(arr[x]);
+                run = false;
+            }
+        }
         // End Solution Edits
         System.out.println("");
         System.out.println("______________________________________");
     }
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "Rc728"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 1);
         printOdds(array1,1);

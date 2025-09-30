@@ -17,8 +17,39 @@ public class Problem3 extends BaseClass {
         // Step 3: Add code to solve the problem (add/commit as needed)
         Object[] output = new Object[arr.length];
         // Start Solution Edits
-        
-
+        //Rc728 9/29/2025
+        for(int x = 0; x < arr.length; x++){
+            Object num = arr[x];
+            if(num instanceof Integer){
+                output[x] = Math.abs((int) num);
+            }else if(num instanceof Double){
+                output[x] = Math.abs((double) num);
+            }else if(num instanceof Float){
+                output[x] = Math.abs((Float) num);
+            }else if(num instanceof String){
+                String str = (String) num;
+                if(str.substring(0,1) == "-"){
+                    output[x] = str.substring(1);
+                }else {
+                    output[x] = str; 
+                }   
+            }else if( num instanceof Object){
+                    if( num instanceof Integer){
+                        output[x] = Math.abs((int) num);
+                    }else if(num instanceof Double){
+                        output[x] = Math.abs((double) num);
+                    }else if(num instanceof Float){
+                        output[x] = Math.abs((Float) num);
+                    }else if(num instanceof String){
+                        String str = (String) num;
+                        if(str.substring(0,1) == "-"){
+                            output[x] = str.substring(1);
+                        }else {
+                            output[x] = str; 
+                        }   
+                    }
+            }
+        }        
         // End Solution Edits
         System.out.println("Output: ");
         printOutputWithType(output);
@@ -27,7 +58,7 @@ public class Problem3 extends BaseClass {
     }
 
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "Rc728"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 3);
         bePositive(array1, 1);

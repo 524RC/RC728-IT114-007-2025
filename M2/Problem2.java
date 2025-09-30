@@ -21,10 +21,20 @@ public class Problem2 extends BaseClass {
         double total = 0;
         // Start Solution Edits
         // Solve Challenge 1 here
+
+        //Rc728 9/29/2025
+        //the for loop runs through the arrays and add them all to total as a double
+        for(int x = 0; x < arr.length; x++){
+            total += arr[x];
+        }
         
-      
         // Solve Challenge 2 here
+        //changed modifiedTotal to a string then used the %.2f to show the two decimal points of total
         Object modifiedTotal = "?";
+        String modifiedTotalStr = modifiedTotal.toString();
+
+        modifiedTotal = String.format("%.2f", total);
+        
 
         // End Solution Edits
         System.out.println("Total Raw Value: " +total);
@@ -34,7 +44,7 @@ public class Problem2 extends BaseClass {
     }
 
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "Rc728"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 2);
         sumValues(array1, 1);
