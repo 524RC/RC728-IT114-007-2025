@@ -20,7 +20,7 @@ public class Problem3 extends BaseClass {
         //Rc728 9/29/2025
         //first the for loop, loops over the arrays given and makes a new variable of Object called num to be able to use the instanceof
         //then num uses instanceof to check if its a type integer, float, double, string, or object.
-        //once it is passed through the checking system, it would change the variable num to a positive using Math.abs
+        //once it is passed through the checking system, it would change the variable num to a positive using Math.
         //if it's a string, then it will check the first character in the string and if it equals to "-", then it removes it making the
         //string positive
         //then if it is and instance of the object class, then it will run through the entire system thing for each variable in the array

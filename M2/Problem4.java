@@ -38,7 +38,7 @@ public class Problem4 extends BaseClass {
             //first it sets capitalize to true so the first character would be capital and when it sees a " " it will make the character
             //after that capitalized so all the words start with capital letters
             //after everything has been tweaked, it all gets put into sentenceProcessed to join all the words together
-            //then everything gets assigned to placeholderForModifiedPhrase
+            //  
             String[] chars = {};
             for(int x = 0; x < arr.length; x++){
                String noSpecialChar = arr[i].replaceAll("[^a-zA-Z0-9 ]", "");
