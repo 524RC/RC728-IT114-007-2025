@@ -34,7 +34,7 @@ public class CommandLineCalculator extends BaseClass {
             //Rc728 10/14/2025
             String num1String = args[0];
             String operator = args[1];
-            String num2String = args[2];c
+            String num2String = args[2];
 
 
             double num1 = Double.parseDouble(num1String);
@@ -51,8 +51,20 @@ public class CommandLineCalculator extends BaseClass {
                 return;
             }
 
+            int decimal1 = 0;
+            int decimal2 = 0;
 
-           
+            if (num1String.contains(".")) {
+                decimal1 = num1String.length() - num1String.indexOf('.') - 1;
+            }
+            if (num2String.contains(".")) {
+                decimal2 = num2String.length() - num2String.indexOf('.') - 1;
+            }
+            
+            int maxDecimals = Math.max(decimal1, decimal2);
+            String formatPattern = "%." + maxDecimals + "f";
+            System.out.println("Result: " + String.format(formatPattern, sum));
+
             // check the type of each number and choose appropriate parsing
            
             // generate the equation result (Important: ensure decimals display as the
