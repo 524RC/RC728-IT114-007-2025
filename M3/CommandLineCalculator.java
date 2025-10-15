@@ -1,5 +1,6 @@
 package M3;
 
+
 /*
 Challenge 1: Command-Line Calculator
 ------------------------------------
@@ -11,17 +12,21 @@ Challenge 1: Command-Line Calculator
 - Capture 5 variations of tests
 */
 
+
 public class CommandLineCalculator extends BaseClass {
     private static String ucid = "Rc728"; // <-- change to your ucid
 
+
     public static void main(String[] args) {
         printHeader(ucid, 1, "Objective: Implement a calculator using command-line arguments.");
+
 
         if (args.length != 3) {
             System.out.println("Usage: java M3.CommandLineCalculator <num1> <operator> <num2>");
             printFooter(ucid, 1);
             return;
         }
+
 
         try {
             System.out.println("Calculating result...");
@@ -30,6 +35,7 @@ public class CommandLineCalculator extends BaseClass {
             String num1String = args[0];
             String operator = args[1];
             String num2String = args[2];
+
 
             double num1 = Double.parseDouble(num1String);
             double num2 = Double.parseDouble(num2String);
@@ -41,22 +47,38 @@ public class CommandLineCalculator extends BaseClass {
                 sum = num1 - num2;
             }else{
                 System.out.print("unsupported operator: " + operator);
-                printFooter(num2String, 1);
+                printFooter(ucid, 1);
                 return;
             }
 
+            int decimal1 = 0;
+            int decimal2 = 0;
+
+            if (num1String.contains(".")) {
+                decimal1 = num1String.length() - num1String.indexOf('.') - 1;
+            }
+            if (num2String.contains(".")) {
+                decimal2 = num2String.length() - num2String.indexOf('.') - 1;
+            }
             
+            int maxDecimals = Math.max(decimal1, decimal2);
+            String formatPattern = "%." + maxDecimals + "f";
+            System.out.println("Result: " + String.format(formatPattern, sum));
+
             // check the type of each number and choose appropriate parsing
-            
+           
             // generate the equation result (Important: ensure decimals display as the
             // longest decimal passed)
             // i.e., 0.1 + 0.2 would show as one decimal place (0.3), 0.11 + 0.2 would shows
             // as two (0.31), etc
-
+       
         } catch (Exception e) {
             System.out.println("Invalid input. Please ensure correct format and valid numbers.");
         }
-
+       
         printFooter(ucid, 1);
+       
     }
 }
+
+
