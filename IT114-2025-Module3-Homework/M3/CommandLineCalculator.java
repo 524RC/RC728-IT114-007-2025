@@ -12,7 +12,7 @@ Challenge 1: Command-Line Calculator
 */
 
 public class CommandLineCalculator extends BaseClass {
-    private static String ucid = "mt85"; // <-- change to your ucid
+    private static String ucid = "Rc728"; // <-- change to your ucid
 
     public static void main(String[] args) {
         printHeader(ucid, 1, "Objective: Implement a calculator using command-line arguments.");
@@ -26,11 +26,28 @@ public class CommandLineCalculator extends BaseClass {
         try {
             System.out.println("Calculating result...");
             // extract the equation (format is <num1> <operator> <num2>)
+            //Rc728 10/14/2025
+            String num1String = args[0];
+            String operator = args[1];
+            String num2String = args[2];
 
+            double num1 = Double.parseDouble(num1String);
+            double num2 = Double.parseDouble(num2String);
+            double sum;
             // check if operator is addition or subtraction
+            if(operator.equals("+")){
+                sum = num1 + num2;
+            }else if (operator.equals("-")){
+                sum = num1 - num2;
+            }else{
+                System.out.print("unsupported operator: " + operator);
+                printFooter(num2String, 1);
+                return;
+            }
 
+            
             // check the type of each number and choose appropriate parsing
-
+            
             // generate the equation result (Important: ensure decimals display as the
             // longest decimal passed)
             // i.e., 0.1 + 0.2 would show as one decimal place (0.3), 0.11 + 0.2 would shows
