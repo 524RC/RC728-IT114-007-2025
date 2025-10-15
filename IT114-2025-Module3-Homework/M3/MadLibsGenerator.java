@@ -18,7 +18,7 @@ Challenge 3: Mad Libs Generator (Randomized Stories)
 
 public class MadLibsGenerator extends BaseClass {
     private static final String STORIES_FOLDER = "M3/stories";
-    private static String ucid = "mt85"; // <-- change to your ucid
+    private static String ucid = "Rc728"; // <-- change to your ucid
 
     public static void main(String[] args) {
         printHeader(ucid, 3,
@@ -35,11 +35,47 @@ public class MadLibsGenerator extends BaseClass {
         }
         List<String> lines = new ArrayList<>();
         // Start edits
+        //RC728 10/14/25
+        File file;
 
         // load a random story file
+        int Random = (int)(Math.random()*5+1);
+        if(Random == 1){
+             file = new File("M3/stories/story1.txt");
+        }else if(Random == 2){
+            file = new File("M3/stories/story2.txt");
+        }else if(Random == 3){
+            file = new File("M3/stories/story3.txt");
+        }else if(Random == 4){
+            file = new File("M3/stories/story4.txt");
+        }else if(Random == 5){
+            file = new File("M3/stories/story5.txt");
+        }
+
+        try (Scanner fileScanner = new Scanner(File)) {
+            while (fileScanner.hasNextLine()) {
+                lines.add(fileScanner.nextLine());
+            }
+        }catch(Exception e){
+            System.out.print("Error ");
+        }
 
         // parse the story lines
+        for(int x = 0; x < lines.size(); x ++){
+            String line = lines.get(x);
+            while(line.contains("<") && line.contains(">")){
+                int start = line.indexOf("<");
+                int end = line.indexOf(">", start);
+                if(end == -1) break;
 
+                String placeholder = line.substring(start + 1, end);
+                String prompt = placeholder.replace("_", " ");
+                System.out.print("Enter a(n) " + prompt + ": ");
+                String userInput = scanner.nextLine();
+
+                line = line.substring(0, start) + userInput + line.substring(end + 1);
+            }
+        }
         // iterate through the lines
 
         // prompt the user for each placeholder (note: there may be more than one
