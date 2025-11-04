@@ -128,7 +128,7 @@ public class ServerThread extends Thread {
                         throw new IOException("Connection interrupted"); // Specific exception for a clean break
                     } else {
                         info(TextFX.colorize("Received from my client: " + fromClient, Color.CYAN));
-                        processPayload(fromClient);
+                        processProject.Common.Payload(fromClient);
                     }
                 } catch (ClassCastException | ClassNotFoundException cce) {
                     System.err.println("Error reading object as specified type: " + cce.getMessage());
@@ -155,7 +155,7 @@ public class ServerThread extends Thread {
         }
     }
 
-    private void processPayload(String incoming) {
+    private void processProject.Common.Payload(String incoming) {
         if (!processCommand(incoming)) {
             // if not command; send message to all clients via Server
             server.handleMessage(this, incoming);

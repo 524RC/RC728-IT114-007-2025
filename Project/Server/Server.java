@@ -1,11 +1,14 @@
-package M5.Part5;
+package Project.Server;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 
-import M5.Part5.TextFX.Color;
+import Project.Common.TextFX.Color;
+import Project.Exception.DuplicateRoomException;
+import Project.Exception.RoomNotFoundException;
+import Project.Server.Room;
 
 public enum Server {
     INSTANCE; // Singleton instance

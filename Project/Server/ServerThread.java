@@ -1,9 +1,14 @@
-package M5.Part5;
+package Project.Server;
 
 import java.net.Socket;
 import java.util.Objects;
 import java.util.function.Consumer;
-import M5.Part5.TextFX.Color;
+import Project.Common.TextFX.Color;
+import Project.Common.ConnectionPayload;
+import Project.Common.Payload;
+import Project.Common.PayloadType;
+import Project.Common.TextFX;
+import Project.Server.RoomAction;
 
 /**
  * A server-side representation of a single client
