@@ -90,7 +90,8 @@ public class Client {
      * @param text
      * @return true if a text was a command or triggered a command
      */
-    private boolean processClientCommand(String text) {
+    private boolean processClientCommand(String text)
+     {
         if (isConnection(text)) {
             // replaces multiple spaces with single space
             // splits on the space after connect (gives us host and port)
@@ -100,6 +101,13 @@ public class Client {
             return true;
         } else if ("/quit".equalsIgnoreCase(text)) {
             isRunning = false;
+            return true;
+        }else if ("/flip".equalsIgnoreCase(text)) { // code added here
+            if (isConnected()) {
+                out.println("/flip"); 
+            }else {
+                System.out.println("Not connected to server");
+            }
             return true;
         }
         return false;

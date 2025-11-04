@@ -5,10 +5,21 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Random;
 
 public class Server {
     private int port = 3000;
+    
+    public String flipCoin(String username) {
+        String[] options = { "Heads", "Tails" };
+        Random rand = new Random();
+        String result = options[rand.nextInt(2)];
+        return username + " flipped a coin and got " + result;
+    }
 
+    public void relay(String message) {
+        System.out.println(message);
+    }
     private void start(int port) {
         this.port = port;
         System.out.println("Listening on port " + this.port);
@@ -28,6 +39,9 @@ public class Server {
                     // sake
                     System.out.println("Client killed server");
                     break;
+                }else if ("/flip".equalsIgnoreCase(fromClient)) {
+                    String resultMessage = flipCoin("Client"); // replace "Client" with username if you have one
+                    relay(resultMessage);
                 } else {
                     System.out.println("From client: " + fromClient);
                 }
