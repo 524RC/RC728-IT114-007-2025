@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 
+import Project.Common.TextFX;
 import Project.Common.TextFX.Color;
 import Project.Exception.DuplicateRoomException;
 import Project.Exception.RoomNotFoundException;
@@ -35,6 +36,7 @@ public enum Server {
     /**
      * Gracefully disconnect clients
      */
+    //rc728 11/5/25
     private void shutdown() {
         try {
             // chose removeIf over forEach to avoid potential
@@ -48,7 +50,7 @@ public enum Server {
             e.printStackTrace();
         }
     }
-
+    // Rc728 11/4/25
     private void start(int port) {
         this.port = port;
         // server listening
@@ -158,6 +160,7 @@ public enum Server {
      * @param sender  ServerThread (client) sending the message or null if it's a
      *                server-generated message
      */
+    //Rc728 11/5/25
     private synchronized void relayToAllRooms(ServerThread sender, String message) {
         // Note: any desired changes to the message must be done before this line
         String senderString = sender == null ? "Server" : sender.getDisplayName();

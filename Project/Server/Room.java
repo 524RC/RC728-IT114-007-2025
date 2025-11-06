@@ -1,9 +1,14 @@
 package Project.Server;
 
 import java.util.concurrent.ConcurrentHashMap;
+
 import Project.Common.TextFX.Color;
+import Project.Server.Server;
 import Project.Common.Constants;
+import Project.Common.RoomAction;
+import Project.Common.TextFX;
 import Project.Exception.DuplicateRoomException;
+import Project.Exception.RoomNotFoundException;
 
 public class Room implements AutoCloseable {
     private final String name;// unique name of the Room
@@ -42,7 +47,7 @@ public class Room implements AutoCloseable {
         joinStatusRelay(client, true);
 
     }
-
+    //Rc728 11/5/25
     protected synchronized void removeClient(ServerThread client) {
         if (!isRunning) { // block action if Room isn't running
             return;
@@ -109,6 +114,7 @@ public class Room implements AutoCloseable {
      * @param sender  ServerThread (client) sending the message or null if it's a
      *                server-generated message
      */
+    //rc728 11/5/25
     protected synchronized void relay(ServerThread sender, String message) {
         if (!isRunning) { // block action if Room isn't running
             return;
@@ -188,6 +194,7 @@ public class Room implements AutoCloseable {
     /**
      * Attempts to close the room to free up resources if it's empty
      */
+    //rc7287 11/5/25
     private void autoCleanup() {
         if (!Room.LOBBY.equalsIgnoreCase(name) && clientsInRoom.isEmpty()) {
             close();
@@ -217,6 +224,7 @@ public class Room implements AutoCloseable {
     }
 
     // start handle methods
+    //rc728 11/5/25
     public void handleCreateRoom(ServerThread sender, String roomName) {
         try {
             Server.INSTANCE.createRoom(roomName);
@@ -229,6 +237,7 @@ public class Room implements AutoCloseable {
         }
     }
 
+    //Rc728 11/5/25
     public void handleJoinRoom(ServerThread sender, String roomName) {
         try {
             Server.INSTANCE.joinRoom(roomName, sender);
@@ -257,6 +266,7 @@ public class Room implements AutoCloseable {
         relay(sender, rev);
     }
 
+    //Rc728 11/5/25
     protected synchronized void handleMessage(ServerThread sender, String text) {
         relay(sender, text);
     }

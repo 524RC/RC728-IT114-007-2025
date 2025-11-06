@@ -12,6 +12,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import Project.Common.TextFX.Color;
+import Project.Common.PayloadType;
+import Project.Common.Command;
+import Project.Common.ConnectionPayload;
+import Project.Common.Constants;
+import Project.Common.Payload;
+import Project.Common.RoomAction;
+import Project.Common.TextFX;
+import Project.Common.User;
 
 /**
  * Demoing bi-directional communication between client and server in a
@@ -107,6 +115,7 @@ public enum Client {
      * @return true if the text was a command or triggered a command
      * @throws IOException
      */
+    //Rc728 11/5/25
     private boolean processClientCommand(String text) throws IOException {
         boolean wasCommand = false;
         if (text.startsWith(Constants.COMMAND_TRIGGER)) {
@@ -152,6 +161,7 @@ public enum Client {
                 text = text.replace(Command.REVERSE.command, "").trim();
                 sendReverse(text);
                 wasCommand = true;
+                //Rc728 11/5/25
             } else if (text.startsWith(Command.CREATE_ROOM.command)) {
                 text = text.replace(Command.CREATE_ROOM.command, "").trim();
                 if (text == null || text.length() == 0) {
@@ -160,6 +170,7 @@ public enum Client {
                 }
                 sendRoomAction(text, RoomAction.CREATE);
                 wasCommand = true;
+                //rc728 11/5/25
             } else if (text.startsWith(Command.JOIN_ROOM.command)) {
                 text = text.replace(Command.JOIN_ROOM.command, "").trim();
                 if (text == null || text.length() == 0) {
@@ -226,6 +237,7 @@ public enum Client {
      * 
      * @throws IOException
      */
+    //rc728 11/5/25
     private void sendDisconnect() throws IOException {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.DISCONNECT);
@@ -238,6 +250,7 @@ public enum Client {
      * @param message
      * @throws IOException
      */
+    //Rc728 11/5/25
     private void sendMessage(String message) throws IOException {
         Payload payload = new Payload();
         payload.setMessage(message);
