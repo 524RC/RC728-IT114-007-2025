@@ -3,7 +3,7 @@ package Project.Common;
 import java.io.Serializable;
 
 import Project.Common.PayloadType;
-
+//rc728 11/23/25
 public class Payload implements Serializable {
     private PayloadType payloadType;
     private long clientId;
