@@ -3,15 +3,13 @@ package Project.Common;
 public class ChoicePayload extends Payload {
 
     public enum Choice {
-        ROCK,
-        PAPER,
-        SCISSORS
+        ROCK, PAPER, SCISSORS
     }
 
     private Choice choice;
 
-    public ChoicePayload() {
-        setPayloadType(PayloadType.CHOICE);  // You'll add CHOICE to PayloadType
+    public ChoicePayload(Choice choice) {
+        setPayloadType(PayloadType.CHOICE); // <- must match server expectation
     }
 
     public Choice getChoice() {
@@ -21,6 +19,7 @@ public class ChoicePayload extends Payload {
     public void setChoice(Choice choice) {
         this.choice = choice;
     }
+    
 
     @Override
     public String toString() {
