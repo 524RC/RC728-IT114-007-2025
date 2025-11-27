@@ -46,6 +46,31 @@ public class User {
         this.isReady = isReady;
     }
 
+    private ChoicePayload.Choice choice = null;
+
+    public ChoicePayload.Choice getChoice() {
+        return choice;
+    }
+
+    public void setChoice(ChoicePayload.Choice choice) {
+        this.choice = choice;
+    }   
+
+    private int points = 0;
+    public int getPoints() {
+    return points;
+    }   
+
+    public void setPoints(int points) {
+    this.points = points;
+    }
+
+    public void addPoint() {
+    this.points++;
+    }
+
+
+
     public void reset() {
         this.clientId = Constants.DEFAULT_CLIENT_ID;
         this.clientName = null;

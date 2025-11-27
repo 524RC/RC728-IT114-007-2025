@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import Project.Common.TextFX.Color;
+import Project.Common.ChoicePayload;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Payload;
 import Project.Common.PayloadType;
 import Project.Common.Phase;
+import Project.Common.PointsPayload;
 import Project.Common.ReadyPayload;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
@@ -191,6 +193,7 @@ public class ServerThread extends BaseServerThread {
      * @param message
      * @return true for successful send
      */
+    //rc728 11/26/25
     protected boolean sendMessage(long clientId, String message) {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.MESSAGE);
@@ -250,7 +253,29 @@ public class ServerThread extends BaseServerThread {
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
+                //rc728 11/26/25
+            case CHOICE:
+    try {
+        ((GameRoom) currentRoom).handleChoiceAction(this, (ChoicePayload) incoming);
+    } catch (Exception e) {
+        sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to choose an action");
+    }
+    break;
+
+case POINTS:
+    try {
+        handlePointsPayload((PointsPayload) incoming);
+    } catch (Exception e) {
+        sendMessage(Constants.DEFAULT_CLIENT_ID, "Failed to process points payload");
+    }
+    break;
+
+
         }
+    }
+
+    private void handlePointsPayload(PointsPayload p) {
+        info("Received points payload: ID=" + p.getClientId() + " Pts=" + p.getPoints());
     }
 
     // limited user data exposer

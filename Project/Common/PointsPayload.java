@@ -1,28 +1,29 @@
 package Project.Common;
-//rc728 11/23/25
+
 public class PointsPayload extends Payload {
+
     private int points;
 
     public PointsPayload() {
         setPayloadType(PayloadType.POINTS);
     }
 
-    /**
-     * @return the points
-     */
+    public PointsPayload(long clientId, int points) {
+        setPayloadType(PayloadType.POINTS);
+        setClientId(clientId); // inherited from Payload
+        this.points = points;
+    }
+
     public int getPoints() {
         return points;
     }
 
-    /**
-     * @param points the points to set
-     */
-    public void setPoints(int points) {
-        this.points = points;
+    public void setPoints(int p) {
+        this.points = p;
     }
 
     @Override
     public String toString() {
-        return super.toString() + String.format(" points=%d", points);
+        return super.toString() + " points=" + points;
     }
 }

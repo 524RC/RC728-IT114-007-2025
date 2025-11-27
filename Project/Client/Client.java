@@ -6,12 +6,14 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import Project.Common.ChoicePayload;
 import Project.Common.Command;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
@@ -56,12 +58,21 @@ public enum Client {
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
     }
+    private static final Map<String, ChoicePayload.Choice> PICK_MAP = Map.of(
+    "r", ChoicePayload.Choice.ROCK,
+    "rock", ChoicePayload.Choice.ROCK,
+    "p", ChoicePayload.Choice.PAPER,
+    "paper", ChoicePayload.Choice.PAPER,
+    "s", ChoicePayload.Choice.SCISSORS,
+    "scissors", ChoicePayload.Choice.SCISSORS
+    );
+
 
     // needs to be private now that the enum logic is handling this
     private Client() {
         LoggerUtil.INSTANCE.info("Client Created");
     }
-
+    
     public boolean isConnected() {
         if (server == null) {
             return false;
@@ -209,15 +220,55 @@ public enum Client {
 
                 sendRoomAction(text, RoomAction.LIST);
                 wasCommand = true;
+            // Client.java - In processClientCommand(String text)
+//...
             } else if (text.equalsIgnoreCase(Command.READY.command)) {
                 sendReady();
                 wasCommand = true;
-            } else if (text.startsWith(Command.EXAMPLE_TURN.command)) {
+                //rc728 11/26/25
+            } else if (text.startsWith("pick")) { 
+                String pickArg = text.replace("pick", "").trim().toLowerCase(); 
+
+                if (pickArg.isEmpty()) {
+                    LoggerUtil.INSTANCE.warning("Usage: /pick r|p|s or /pick rock|paper|scissors");
+                } else {
+                    ChoicePayload.Choice choice = PICK_MAP.get(pickArg);
+                    if (choice == null) {
+                        LoggerUtil.INSTANCE.warning("Invalid pick. Use r, p, s or rock, paper, scissors.");
+                    } else {
+                        try {
+                            sendChoice(choice); 
+                        } catch (IOException e) {
+                            LoggerUtil.INSTANCE.severe("Failed to send choice to server", e);
+                        }
+                    }
+                }
+                wasCommand = true;
+            }else if (text.startsWith(Command.EXAMPLE_TURN.command)) {
+                String pickArg = text.replace("/pick", "").trim().toLowerCase();
+
+                if (pickArg.isEmpty()) {
+                    LoggerUtil.INSTANCE.warning("Usage: /pick r|p|s or /pick rock|paper|scissors");
+                } else {
+                    ChoicePayload.Choice choice = PICK_MAP.get(pickArg);
+                    if (choice == null) {
+                        LoggerUtil.INSTANCE.warning("Invalid pick. Use r, p, s or rock, paper, scissors.");
+                    } else {
+                        try {
+                            sendChoice(choice); // this calls sendToServer(new ChoicePayload(choice))
+                        } catch (IOException e) {
+                            LoggerUtil.INSTANCE.severe("Failed to send choice to server", e);
+                        }
+                    }
+                }
+                wasCommand = true;
+            }else if (text.startsWith(Command.EXAMPLE_TURN.command)) {
                 text = text.replace(Command.EXAMPLE_TURN.command, "").trim();
 
                 sendDoTurn(text);
                 wasCommand = true;
             }
+
         }
         return wasCommand;
     }
@@ -336,6 +387,14 @@ public enum Client {
                     "Not connected to server (hint: type `/connect host:port` without the quotes and replace host/port with the necessary info)");
         }
     }
+
+    private void sendChoice(ChoicePayload.Choice choice) throws IOException {
+        ChoicePayload cp = new ChoicePayload(choice);
+        sendToServer(cp);
+    }
+
+
+
     // End Send*() methods
 
     public void start() throws IOException {
@@ -378,7 +437,7 @@ public enum Client {
         }
         LoggerUtil.INSTANCE.info("listenToServer thread stopped");
     }
-
+    //Rc728 11/26/25
     private void processPayload(Payload payload) {
         switch (payload.getPayloadType()) {
             case CLIENT_CONNECT:// unused
