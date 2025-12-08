@@ -1,5 +1,7 @@
 package Project.Common;
 
+import java.util.Objects;
+
 public class ChoicePayload extends Payload {
 
     public enum Choice {
@@ -9,7 +11,9 @@ public class ChoicePayload extends Payload {
     private Choice choice;
 
     public ChoicePayload(Choice choice) {
-        setPayloadType(PayloadType.CHOICE); // <- must match server expectation
+        Objects.requireNonNull(choice, "choice cannot be null");
+        this.choice = choice;
+        setPayloadType(PayloadType.CHOICE);
     }
 
     public Choice getChoice() {
