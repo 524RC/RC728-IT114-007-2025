@@ -7,7 +7,6 @@ import Project.Client.Client;
 import Project.Client.Interfaces.IExtraModeEvent;
 
 public class ReadyView extends JPanel implements IExtraModeEvent {
-
     private JButton toggleExtrasButton;
 
     public ReadyView() {

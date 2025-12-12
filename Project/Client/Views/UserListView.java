@@ -174,7 +174,7 @@ public void onUserEliminated(long clientId, boolean isEliminated) {
 
     @Override
     public void onReceiveClientId(long id) {
-        // unused
+        
     }
 
     @Override

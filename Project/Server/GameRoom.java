@@ -378,7 +378,7 @@ private void processBattles() {
                     (extrasEnabled ? "ENABLED" : "DISABLED"));
 
         broadcastChoiceMode();
-}
+    }
     /** {@inheritDoc} */
     
     // Note: logic between Turn Start and Turn End is typically handled via timers
