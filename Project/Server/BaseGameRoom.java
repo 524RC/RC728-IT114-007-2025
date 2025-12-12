@@ -7,6 +7,7 @@ import Project.Common.LoggerUtil;
 import Project.Common.Phase;
 import Project.Common.TimedEvent;
 import Project.Common.TimerType;
+import Project.Common.Payload;      
 import Project.Exceptions.NotReadyException;
 import Project.Exceptions.PhaseMismatchException;
 import Project.Exceptions.PlayerNotFoundException;
@@ -120,6 +121,7 @@ public abstract class BaseGameRoom extends Room {
     /**
      * Cancels any in progress readyTimer
      */
+    //rc728 12/11/25
     protected void resetReadyTimer() {
         if (readyTimer != null) {
             readyTimer.cancel();
@@ -127,6 +129,28 @@ public abstract class BaseGameRoom extends Room {
             sendCurrentTime(TimerType.READY, -1);
         }
     }
+    
+    protected void relayPayload(Payload p) {
+    // Broadcast a Payload object to every client in the room
+        clientsInRoom.values().forEach(sp -> {
+            boolean ok = sp.send(p);
+            if (!ok) {
+                removeClient(sp);
+           }
+        });
+    }
+
+    protected void relay(ServerThread sender, String message) {
+        clientsInRoom.values().removeIf(sp -> {
+           boolean failed = !sp.sendMessage(
+               sender != null ? sender.getClientId() : Constants.DEFAULT_CLIENT_ID,
+              message
+          );
+          if (failed) removeClient(sp);
+           return failed;
+        });
+    }
+
 
     /**
      * Starts the ready timer
@@ -138,7 +162,7 @@ public abstract class BaseGameRoom extends Room {
             resetReadyTimer();
         }
         if (readyTimer == null) {
-            readyTimer = new TimedEvent(30, () -> {
+            readyTimer = new TimedEvent(15, () -> {
                 // callback to trigger when ready expires
                 checkReadyStatus();
             });
@@ -207,6 +231,8 @@ public abstract class BaseGameRoom extends Room {
         });
     }
 
+
+    
     /**
      * Note: due to log output, this will get really spammy
      * 
@@ -223,6 +249,7 @@ public abstract class BaseGameRoom extends Room {
         });
     }
 
+    
     /**
      * Syncs the current phase to a single client
      * 

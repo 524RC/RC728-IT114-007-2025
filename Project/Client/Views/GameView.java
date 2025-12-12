@@ -12,6 +12,7 @@ import Project.Client.CardViewName;
 import Project.Client.Client;
 import Project.Client.Interfaces.ICardControls;
 import Project.Client.Interfaces.IPhaseEvent;
+import Project.Client.Interfaces.IExtraModeEvent;
 import Project.Common.Phase;
 
 public class GameView extends JPanel implements IPhaseEvent {
@@ -29,11 +30,15 @@ public class GameView extends JPanel implements IPhaseEvent {
         Client.INSTANCE.registerCallback(this);
 
         ReadyView readyView = new ReadyView();
-        readyView.setName(READY_PANEL);
+        Client.INSTANCE.registerCallback(readyView);
         gameContainer.add(READY_PANEL, readyView);
 
         playView = new PlayView(PLAY_PANEL);
+        Client.INSTANCE.registerCallback(playView);
+
+        gameContainer.add(READY_PANEL, readyView);
         gameContainer.add(PLAY_PANEL, playView);
+
 
         GameEventsView gameEventsView = new GameEventsView();
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, gameContainer, gameEventsView);
@@ -57,18 +62,21 @@ public class GameView extends JPanel implements IPhaseEvent {
         controls.registerView(CardViewName.GAME_SCREEN.name(), this);
         setVisible(false);
     }
-
     @Override
     public void onReceivePhase(Phase phase) {
         System.out.println("Received phase: " + phase.name());
 
-        if (phase == Phase.READY) {
-            cardLayout.show(playView.getParent(), READY_PANEL);
-        } else if (phase == Phase.IN_PROGRESS) {
-            cardLayout.show(playView.getParent(), PLAY_PANEL);
+        switch (phase) {
+            case READY:
+                cardLayout.show(playView.getParent(), READY_PANEL);
+                break;
+
+            case IN_PROGRESS:
+            case CHOOSING:
+                cardLayout.show(playView.getParent(), PLAY_PANEL);
+                break;
         }
-        // GameView can act as a manager and pass data to playView
-        // Or playView can implement its own interfaces to receive changes
+
         playView.changePhase(phase);
     }
 

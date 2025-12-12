@@ -4,10 +4,13 @@ import java.io.IOException;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import Project.Client.Client;
+import Project.Client.Interfaces.IExtraModeEvent;
 
-public class ReadyView extends JPanel {
+public class ReadyView extends JPanel implements IExtraModeEvent {
+
+    private JButton toggleExtrasButton;
+
     public ReadyView() {
-        // TODO some projects may need to add other UI here for pre-session setup
         JButton readyButton = new JButton("Ready");
         readyButton.addActionListener(_ -> {
             try {
@@ -17,5 +20,24 @@ public class ReadyView extends JPanel {
             }
         });
         this.add(readyButton);
+
+        toggleExtrasButton = new JButton("Toggle Extras");
+        toggleExtrasButton.setVisible(false); 
+        toggleExtrasButton.addActionListener(e -> {
+            try {
+                Client.INSTANCE.sendMessage("/toggleExtras");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        this.add(toggleExtrasButton);
     }
+
+    @Override
+    public void onHostIdentified(boolean isHost) {
+        toggleExtrasButton.setVisible(isHost);
+    }
+
+    @Override
+    public void onExtraModeChanged(boolean enabled) {}
 }

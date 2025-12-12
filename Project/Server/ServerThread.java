@@ -15,10 +15,12 @@ import Project.Common.Payload;
 import Project.Common.PayloadType;
 import Project.Common.Phase;
 import Project.Common.PointsPayload;
+import Project.Common.User;
 import Project.Common.ReadyPayload;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
 import Project.Common.TextFX;
+import Project.Common.EliminationPayload;
 
 /**
  * A server-side representation of a single client
@@ -57,7 +59,26 @@ public class ServerThread extends BaseServerThread {
         this.onInitializationComplete = onInitializationComplete;
 
     }
+    public boolean isEliminated() {
+        return this.user.isEliminated();
+    }
+    public void setEliminated(boolean eliminated) {
+        this.user.setEliminated(eliminated);
+    }
 
+    public boolean send(Payload p) {
+        try {
+            if (out != null) {
+                out.writeObject(p);
+                out.flush();
+                return true;
+            }
+        } catch (Exception e) {
+        // Log the error and assume disconnection
+            info("Failed to send payload: " + e.getMessage());
+        }
+        return false;
+    }
     // Start Send*() Methods
     /**
      * Syncs a specific client's points
@@ -66,6 +87,14 @@ public class ServerThread extends BaseServerThread {
      * @param points
      * @return
      */
+
+    //Rc728 12/11/25
+    public boolean sendPlayerEliminationStatus(long clientId, boolean isEliminated) {
+        EliminationPayload p = new EliminationPayload(clientId, isEliminated);
+        return send(p);
+    }
+
+    //Rc728 12/11/25
     public boolean sendPlayerPoints(long clientId, int points) {
         PointsPayload rp = new PointsPayload();
         rp.setPoints(points);
@@ -77,6 +106,10 @@ public class ServerThread extends BaseServerThread {
         return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
     }
 
+
+    public User getUser(){
+        return this.user;
+    }
     /**
      * Syncs the current time of a specific TimerType
      * 
@@ -84,6 +117,7 @@ public class ServerThread extends BaseServerThread {
      * @param time
      * @return
      */
+    //rc728 12/11/25
     public boolean sendCurrentTime(TimerType timerType, int time) {
         TimerPayload tp = new TimerPayload();
         tp.setTime(time);
@@ -91,6 +125,7 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(tp);
     }
 
+    //Rc728 12/11/25
     public boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
@@ -102,8 +137,6 @@ public class ServerThread extends BaseServerThread {
     }
 
     public boolean sendTurnStatus(long clientId, boolean didTakeTurn, boolean quiet) {
-        // NOTE for now using ReadyPayload as it has the necessary properties
-        // An actual turn may include other data for your project
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(quiet ? PayloadType.SYNC_TURN : PayloadType.TURN);
         rp.setClientId(clientId);
@@ -238,75 +271,95 @@ public class ServerThread extends BaseServerThread {
     }
 
     // End Send*() Methods
-    @Override
-    protected void processPayload(Payload incoming) {
+@Override
+protected void processPayload(Payload incoming) {
 
-        switch (incoming.getPayloadType()) {
-            case CLIENT_CONNECT:
-                setClientName(((ConnectionPayload) incoming).getClientName().trim());
+    switch (incoming.getPayloadType()) {
 
-                break;
-            case DISCONNECT:
-                currentRoom.handleDisconnect(this);
-                break;
-            case MESSAGE:
-                currentRoom.handleMessage(this, incoming.getMessage());
-                break;
-            case REVERSE:
-                currentRoom.handleReverseText(this, incoming.getMessage());
-                break;
-            case ROOM_CREATE:
-                currentRoom.handleCreateRoom(this, incoming.getMessage());
-                break;
-            case ROOM_JOIN:
-                currentRoom.handleJoinRoom(this, incoming.getMessage());
-                break;
-            case ROOM_LEAVE:
-                currentRoom.handleJoinRoom(this, Room.LOBBY);
-                break;
-            case ROOM_LIST:
-                currentRoom.handleListRooms(this, incoming.getMessage());
-                break;
-            case READY:
-                // no data needed as the intent will be used as the trigger
-                try {
-                    // cast to GameRoom as the subclass will handle all Game logic
-                    ((GameRoom) currentRoom).handleReady(this);
-                } catch (Exception e) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
-                }
-                break;
-            case TURN:
-                // no data needed as the intent will be used as the trigger
-                try {
-                    // cast to GameRoom as the subclass will handle all Game logic
-                    ((GameRoom) currentRoom).handleTurnAction(this, incoming.getMessage());
-                } catch (Exception e) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
-                }
-                break;
-            default:
-                LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
-                break;
-                    case CHOICE:
-    try {
-        ((GameRoom) currentRoom).handleChoiceAction(this, (ChoicePayload) incoming);
-    } catch (Exception e) {
-        sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to choose an action");
-    }
-    break;
+        case CLIENT_CONNECT:
+            setClientName(((ConnectionPayload) incoming).getClientName().trim());
+            break;
 
-case POINTS:
-    try {
-        handlePointsPayload((PointsPayload) incoming);
-    } catch (Exception e) {
-        sendMessage(Constants.DEFAULT_CLIENT_ID, "Failed to process points payload");
-    }
-    break;
+        case DISCONNECT:
+            currentRoom.handleDisconnect(this);
+            break;
 
+        case MESSAGE:
+    if ("/toggleExtras".equals(incoming.getMessage())) {
 
+        if (currentRoom instanceof GameRoom) {
+            ((GameRoom) currentRoom).toggleExtras();
+        } else {
+            sendMessage(Constants.DEFAULT_CLIENT_ID,
+                "You must be inside a GameRoom to toggle extras.");
         }
+
+        break; // IMPORTANT
     }
+        case REVERSE:
+            currentRoom.handleReverseText(this, incoming.getMessage());
+            break;
+
+        case ROOM_CREATE:
+            currentRoom.handleCreateRoom(this, incoming.getMessage());
+            break;
+
+        case ROOM_JOIN:
+            currentRoom.handleJoinRoom(this, incoming.getMessage());
+            break;
+
+        case ROOM_LEAVE:
+            currentRoom.handleJoinRoom(this, Room.LOBBY);
+            break;
+
+        case ROOM_LIST:
+            currentRoom.handleListRooms(this, incoming.getMessage());
+            break;
+
+        case READY:
+            try {
+                ((GameRoom) currentRoom).handleReady(this);
+            } catch (Exception e) {
+                sendMessage(Constants.DEFAULT_CLIENT_ID,
+                        "You must be in a GameRoom to do the ready check");
+            }
+            break;
+
+        case TURN:
+            sendMessage(Constants.DEFAULT_CLIENT_ID,
+                    "Turn actions are disabled in this game mode.");
+            break;
+        
+            //rc728 12/11/25
+        case CHOICE:
+            try {
+                ((GameRoom) currentRoom).handleChoiceAction(
+                        this, (ChoicePayload) incoming);
+            } catch (Exception e) {
+                sendMessage(Constants.DEFAULT_CLIENT_ID,
+                        "You must be in a GameRoom to choose an action");
+            }
+            break;
+
+        case POINTS:
+            try {
+                handlePointsPayload((PointsPayload) incoming);
+            } catch (Exception e) {
+                sendMessage(Constants.DEFAULT_CLIENT_ID,
+                        "Failed to process points payload");
+            }
+            break;
+        case ELIMINATION:
+            info("Forwarding elimination payload for client "  + incoming.getClientId());
+            sendToClient(incoming);   
+            break;
+
+        default:
+            LoggerUtil.INSTANCE.warning(
+                TextFX.colorize("Unknown payload type received", Color.RED));
+            break;
+    }
+}
 
     private void handlePointsPayload(PointsPayload p) {
         info("Received points payload: ID=" + p.getClientId() + " Pts=" + p.getPoints());

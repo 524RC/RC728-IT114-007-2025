@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 
 import Project.Client.Interfaces.IClientEvents;
 import Project.Client.Interfaces.IConnectionEvents;
+import Project.Client.Interfaces.IEliminationEvent;
 import Project.Client.Interfaces.IMessageEvents;
 import Project.Client.Interfaces.IPhaseEvent;
 import Project.Client.Interfaces.IPointsEvent;
@@ -23,10 +24,13 @@ import Project.Client.Interfaces.IReadyEvent;
 import Project.Client.Interfaces.IRoomEvents;
 import Project.Client.Interfaces.ITimeEvents;
 import Project.Client.Interfaces.ITurnEvent;
+import Project.Client.Interfaces.IExtraModeEvent;
+
 import Project.Common.ChoicePayload;
 import Project.Common.Command;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
+import Project.Common.EliminationPayload;
 import Project.Common.LoggerUtil;
 import Project.Common.Payload;
 import Project.Common.PayloadType;
@@ -46,6 +50,10 @@ import Project.Common.TimerPayload;
  */
 public enum Client {
     INSTANCE;
+
+    public ConcurrentHashMap<Long, User> getKnownClients() {
+    return knownClients;
+}
 
     {
         // statically initialize the client-side LoggerUtil
@@ -74,12 +82,16 @@ public enum Client {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
     }
     private static final Map<String, ChoicePayload.Choice> PICK_MAP = Map.of(
-    "r", ChoicePayload.Choice.ROCK,
-    "rock", ChoicePayload.Choice.ROCK,
-    "p", ChoicePayload.Choice.PAPER,
-    "paper", ChoicePayload.Choice.PAPER,
-    "s", ChoicePayload.Choice.SCISSORS,
-    "scissors", ChoicePayload.Choice.SCISSORS
+        "f", ChoicePayload.Choice.FIRE,
+        "fire", ChoicePayload.Choice.FIRE,
+        "g", ChoicePayload.Choice.GRASS,
+        "grass", ChoicePayload.Choice.GRASS,
+        "w", ChoicePayload.Choice.WATER,
+        "water", ChoicePayload.Choice.WATER,
+        "e", ChoicePayload.Choice.ELECTRIC,
+        "electric", ChoicePayload.Choice.ELECTRIC,
+        "r", ChoicePayload.Choice.ROCK,
+        "rock", ChoicePayload.Choice.ROCK
     );
 
 
@@ -455,10 +467,25 @@ public enum Client {
         }
     }
 
-    private void sendChoice(ChoicePayload.Choice choice) throws IOException {
-        ChoicePayload cp = new ChoicePayload(choice);
-        sendToServer(cp);
+    
+    //rc728 12/11/25
+public void sendChoice(String input) throws IOException {
+    if (input == null) return;
+
+    ChoicePayload.Choice choice = PICK_MAP.get(input.toLowerCase());
+    if (choice == null) {
+        LoggerUtil.INSTANCE.warning("Invalid choice: " + input);
+        return;
     }
+
+    sendChoice(choice);   
+}
+
+private void sendChoice(ChoicePayload.Choice choice) throws IOException {
+    ChoicePayload cp = new ChoicePayload(choice);
+    sendToServer(cp);
+}
+
 
 
 
@@ -516,7 +543,12 @@ public enum Client {
                 processDisconnect(payload);
                 break;
             case MESSAGE:
-                processMessage(payload);
+                String msg = payload.getMessage().trim();
+                LoggerUtil.INSTANCE.info("Received MESSAGE from server: " + msg);
+
+                passToUICallback(IMessageEvents.class, 
+                    e -> e.onMessageReceive(payload.getClientId(), msg)
+                );
                 break;
             case REVERSE:
                 processReverse(payload);
@@ -534,6 +566,25 @@ public enum Client {
                 break;
             case ROOM_LIST:
                 processRoomsList(payload);
+                break;
+            case ELIMINATION:
+                processEliminationStatus(payload);
+                break;
+            case CHOICE_MODE:
+                String mode = payload.getMessage();
+                boolean extras = mode.equals("5");
+
+                passToUICallback(IExtraModeEvent.class,
+                    e -> e.onExtraModeChanged(extras)
+                );
+                break;
+            case HOST_INFO:
+                long hostId = Long.parseLong(payload.getMessage());
+                boolean iAmHost = (hostId == myUser.getClientId());
+
+                passToUICallback(IExtraModeEvent.class,
+                e -> e.onHostIdentified(iAmHost)
+                );
                 break;
             case PayloadType.READY:
                 processReadyStatus(payload, false);
@@ -565,6 +616,7 @@ public enum Client {
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
+            
 
         }
     }
@@ -581,6 +633,7 @@ public enum Client {
         if (isMyClientId(id)) {
             return myUser.getDisplayName();
         }
+        
         return "[Unknown]";
     }
 
@@ -605,7 +658,17 @@ public enum Client {
         }
     }
 
-    // Start process*() methods
+    private void handleEliminationPayload(EliminationPayload p) {
+        long clientId = p.getClientId();
+        boolean isEliminated = p.isEliminated();
+    
+   
+        passToUICallback(IEliminationEvent.class, 
+            e -> e.onUserEliminated(clientId, isEliminated));
+    }
+
+    // Start process*() methods 
+    //Rc728 12/11/25
     private void processPoints(Payload payload) {
         if (!(payload instanceof PointsPayload)) {
             error("Invalid payload subclass for processCardAdd");
@@ -614,6 +677,7 @@ public enum Client {
         PointsPayload pp = (PointsPayload) payload;
         long targetId = pp.getClientId();
         int points = pp.getPoints();
+
         if (targetId == Constants.DEFAULT_CLIENT_ID) {
             // reset all
             knownClients.values().forEach(cp -> cp.setPoints(-1));
@@ -627,25 +691,16 @@ public enum Client {
         }
     }
 
-    private void processCurrentTimer(Payload payload) {
-        if (!(payload instanceof TimerPayload)) {
-            error("Invalid payload subclass for processCurrentTimer");
-            return;
-        }
-        TimerPayload timerPayload = (TimerPayload) payload;
-
-        passToUICallback(ITimeEvents.class, e -> e.onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime()));
-    }
-
+    //Rc728 12/11/25
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");
 
         passToUICallback(ITurnEvent.class, e -> e.onTookTurn(Constants.DEFAULT_CLIENT_ID, false));
     }
-
+    //rc728 12/11/25
     private void processTurn(Payload payload) {
-        // Note: For now assuming ReadyPayload (this may be changed later)
+
         if (!(payload instanceof ReadyPayload)) {
             error("Invalid payload subclass for processTurn");
             return;
@@ -662,20 +717,23 @@ public enum Client {
             String message = String.format("%s %s their turn", cp.getDisplayName(),
                     cp.didTakeTurn() ? "took" : "reset");
             LoggerUtil.INSTANCE.info(message);
-            // reusable method for client-side feedback
+
             clientSideGameEvent(String.format("%s finished their turn",
                     cp.getDisplayName()));
-            // original
-            /*
-             * passToUICallback(IMessageEvents.class,
-             * e -> e.onMessageReceive(Constants.GAME_EVENT_CHANNEL,
-             * String.format("%s finished their turn",
-             * cp.getDisplayName())));
-             */
         }
 
         passToUICallback(ITurnEvent.class, e -> e.onTookTurn(cp.getClientId(), cp.didTakeTurn()));
+    }
+    //rc728 12/11/25
+    private void processCurrentTimer(Payload payload) {
+        if (!(payload instanceof TimerPayload)) {
+            error("Invalid payload subclass for processCurrentTimer");
+            return;
+        }
+        TimerPayload timerPayload = (TimerPayload) payload;
 
+        passToUICallback(ITimeEvents.class, e -> 
+            e.onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime()));
     }
 
     private void processPhase(Payload payload) {
@@ -740,6 +798,41 @@ public enum Client {
         LoggerUtil.INSTANCE.info(
                 String.join(System.lineSeparator(), rooms));
     }
+
+
+//Rc728 12/11/25
+private void processEliminationStatus(Payload payload) {
+    if (!(payload instanceof EliminationPayload)) {
+        error("Invalid payload subclass for processEliminationStatus");
+        return;
+    }
+
+    EliminationPayload ep = (EliminationPayload) payload;
+
+    long targetId = ep.getClientId();  
+    boolean isEliminated = ep.isEliminated();
+
+    LoggerUtil.INSTANCE.info("processEliminationStatus: clientId=" 
+        + targetId + " isEliminated=" + isEliminated);
+    LoggerUtil.INSTANCE.info("Known client IDs: " + knownClients.keySet());
+
+    User cp = knownClients.get(targetId);
+    if (cp != null) {
+        cp.setEliminated(isEliminated);
+        LoggerUtil.INSTANCE.info(String.format(
+                "%s elimination status set to %s",
+                cp.getDisplayName(),
+                isEliminated ? "eliminated" : "not eliminated"));
+    } else {
+        LoggerUtil.INSTANCE.warning(String.format(
+            "Received elimination status for unknown clientId=%s", targetId));
+    }
+
+    passToUICallback(IEliminationEvent.class,
+        e -> e.onUserEliminated(targetId, isEliminated));
+}
+
+
 
     private void processClientData(Payload payload) {
         if (myUser.getClientId() != Constants.DEFAULT_CLIENT_ID) {
@@ -827,6 +920,7 @@ public enum Client {
                         true,
                         connectionPayload.getPayloadType() == PayloadType.SYNC_CLIENT));
                 break;
+            
             default:
                 error("Invalid payload type for processRoomAction");
                 break;
@@ -834,11 +928,36 @@ public enum Client {
     }
 
     private void processMessage(Payload payload) {
-        LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+    String msg = payload.getMessage();
 
-        passToUICallback(IMessageEvents.class, e -> e.onMessageReceive(payload.getClientId(),
-                payload.getMessage()));
+    if (msg != null && msg.startsWith("ELIMINATED:")) {
+        try {
+            long eliminatedId = Long.parseLong(msg.split(":")[1].trim());
+
+            if (knownClients.containsKey(eliminatedId)) {
+                knownClients.get(eliminatedId).setEliminated(true);
+            }
+
+            LoggerUtil.INSTANCE.info(
+                TextFX.colorize("Player eliminated: " + getDisplayNameFromId(eliminatedId), Color.RED));
+
+            passToUICallback(IMessageEvents.class, e ->
+                e.onMessageReceive(Constants.GAME_EVENT_CHANNEL,
+                    getDisplayNameFromId(eliminatedId) + " was eliminated.")
+            );
+
+        } catch (NumberFormatException ex) {
+            LoggerUtil.INSTANCE.warning("Failed to parse ELIMINATED message: " + msg);
+        }
+        return; 
     }
+
+    LoggerUtil.INSTANCE.info(TextFX.colorize(msg, Color.BLUE));
+
+    passToUICallback(IMessageEvents.class, e -> e.onMessageReceive(payload.getClientId(), msg));
+}
+
+
 
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
@@ -854,7 +973,7 @@ public enum Client {
     @Deprecated
     private void listenToInput() {
         try (Scanner si = new Scanner(System.in)) {
-            LoggerUtil.INSTANCE.info("Waiting for input"); // moved here to avoid console spam
+            LoggerUtil.INSTANCE.info("Waiting for input"); 
             while (isRunning) { // Run until isRunning is false
                 String userInput = si.nextLine();
                 if (!processClientCommand(userInput)) {
@@ -863,7 +982,6 @@ public enum Client {
             }
         } catch (IOException ioException) {
             LoggerUtil.INSTANCE.severe("Error in listenToInput()", ioException);
-            // ioException.printStackTrace();
         }
         LoggerUtil.INSTANCE.info("listenToInput thread stopped");
     }

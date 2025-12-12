@@ -5,6 +5,10 @@ public class User {
     private String clientName;
     private boolean isReady = false;
     private boolean tookTurn = false;
+
+    private boolean eliminated = false;
+
+
     private int points = 0;
 
     /**
@@ -61,6 +65,18 @@ public class User {
         this.isReady = isReady;
     }
     
+    
+    public boolean isEliminated() {
+        return eliminated;
+    }
+
+    public void setEliminated(boolean eliminated) {
+        this.eliminated = eliminated;
+    }
+
+
+
+
 
     public void reset() {
         this.clientId = Constants.DEFAULT_CLIENT_ID;
@@ -78,7 +94,7 @@ public class User {
     }
 
     /**
-     * @param tookTurn the tookTurn to set
+     * @param tookTurn 
      */
     public void setTookTurn(boolean tookTurn) {
         this.tookTurn = tookTurn;

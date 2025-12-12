@@ -1,106 +1,107 @@
 package Project.Client.Views;
 
 import java.awt.Color;
-import java.awt.Dimension;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JEditorPane;
 import javax.swing.JPanel;
-import javax.swing.border.EmptyBorder;
-
-/**
- * UserListItem represents a user entry in the user list.
- */
+//Rc728 12/11/25
 public class UserListItem extends JPanel {
-    private final JEditorPane textContainer;
-    private final JPanel turnIndicator;
-    private final JEditorPane pointsPanel;
-    private final String displayName; // store original name for future features that require formatting changes
 
-    /**
-     * Constructor to create a UserListItem.
-     *
-     * @param clientId    The ID of the client.
-     * @param displayName The name of the client.
-     */
+    private final JEditorPane nameLabel;
+    private final JEditorPane statusLabel;
+    private final JEditorPane pointsLabel;
+    private final JEditorPane pointsLineLabel;
+
+    private final String displayName;
+    private boolean eliminated = false;
+
+    //Rc728 12/11/25
     public UserListItem(long clientId, String displayName) {
         this.displayName = displayName;
+
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        setOpaque(false);
 
-        // Name (first line)
-        textContainer = new JEditorPane("text/html", this.displayName);
-        textContainer.setName(Long.toString(clientId));
-        textContainer.setEditable(false);
-        textContainer.setBorder(new EmptyBorder(0, 0, 0, 0));
-        textContainer.setOpaque(false);
-        textContainer.setBackground(new Color(0, 0, 0, 0));
-        add(textContainer);
 
-        // Second line: indicator + points
-        JPanel rowPanel = new JPanel();
-        rowPanel.setLayout(new BoxLayout(rowPanel, BoxLayout.X_AXIS));
-        rowPanel.setOpaque(false);
+        nameLabel = new JEditorPane("text/html", displayName);
+        nameLabel.setEditable(false);
+        nameLabel.setOpaque(false);
+        nameLabel.setBorder(null);
+        add(nameLabel);
 
-        turnIndicator = new JPanel();
-        turnIndicator.setPreferredSize(new Dimension(10, 10));
-        turnIndicator.setMinimumSize(turnIndicator.getPreferredSize());
-        turnIndicator.setMaximumSize(turnIndicator.getPreferredSize());
-        turnIndicator.setOpaque(true);
-        turnIndicator.setVisible(true);
-        rowPanel.add(turnIndicator);
-        rowPanel.add(Box.createHorizontalStrut(8)); // spacing between indicator and points
+        pointsLineLabel = new JEditorPane("text/html", "Points: 0");
+        pointsLineLabel.setEditable(false);
+        pointsLineLabel.setOpaque(false);
+        pointsLineLabel.setBorder(null);
+        add(pointsLineLabel);
 
-        pointsPanel = new JEditorPane("text/html", "");
-        pointsPanel.setEditable(false);
-        pointsPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
-        pointsPanel.setOpaque(false);
-        pointsPanel.setBackground(new Color(0, 0, 0, 0));
-        rowPanel.add(pointsPanel);
+        statusLabel = new JEditorPane("text/plain", "PENDING");
+        statusLabel.setEditable(false);
+        statusLabel.setOpaque(false);
+        statusLabel.setBorder(null);
+        statusLabel.setForeground(Color.GRAY);
+        add(statusLabel);
 
-        add(rowPanel);
+        pointsLabel = new JEditorPane("text/plain", "");
+        pointsLabel.setEditable(false);
+        pointsLabel.setOpaque(false);
+        pointsLabel.setBorder(null);
+        add(pointsLabel);
+
         setPoints(-1);
     }
 
-    /**
-     * Mostly used to trigger a reset, but if used for a true value, it'll apply
-     * Color.GREEN
-     * 
-     * @param didTakeTurn true if the user took their turn
-     */
+    public void setPending() {
+        if (eliminated) return;
+        statusLabel.setText("PENDING");
+        statusLabel.setForeground(Color.GRAY);
+    }
+
+    //rc728 12/11/25
     public void setTurn(boolean didTakeTurn) {
-        setTurn(didTakeTurn, Color.GREEN);
-    }
+        if (eliminated) return;
 
-    /**
-     * Sets the indicator and color based on turn status
-     * 
-     * @param didTakeTurn if true, applies trueColor; otherwise applies transparent
-     * @param trueColor   Color to apply when true
-     */
-    public void setTurn(boolean didTakeTurn, Color trueColor) {
-
-        turnIndicator.setBackground(didTakeTurn ? trueColor : new Color(0, 0, 0, 0));
-        turnIndicator.revalidate();
-        turnIndicator.repaint();
-        this.revalidate();
-        this.repaint();
-    }
-
-    /**
-     * Sets the points display for this user.
-     * 
-     * @param points the number of points, or <0 to hide
-     */
-    public void setPoints(int points) {
-        if (points < 0) {
-            pointsPanel.setText("0");
-            pointsPanel.setVisible(false);
+        if (didTakeTurn) {
+            statusLabel.setText("PICKED");
+            statusLabel.setForeground(Color.GREEN.darker());
         } else {
-            pointsPanel.setText(Integer.toString(points));
-            if (!pointsPanel.isVisible()) {
-                pointsPanel.setVisible(true);
-            }
+            setPending();
         }
-        repaint();
+    }
+
+    public void setReady(boolean isReady) {
+        if (eliminated) return;
+
+        if (isReady) {
+            statusLabel.setText("READY");
+            statusLabel.setForeground(new Color(0, 128, 255)); // blue
+        } else {
+            setPending();
+        }
+    }
+
+    //Rc728 12/11/25
+    public void setEliminated(boolean isEliminated) {
+        eliminated = isEliminated;
+
+        if (isEliminated) {
+            statusLabel.setText("ELIMINATED");
+            statusLabel.setForeground(Color.RED);
+        } else {
+            setPending(); 
+        }
+    }
+
+    public boolean isEliminated() {
+        return eliminated;
+    }
+
+    public void setPoints(int pts) {
+        if (pts < 0) {
+            pointsLineLabel.setText("Points: 0");
+        } else {
+            pointsLineLabel.setText("Points: " + pts);
+        }
+        pointsLineLabel.repaint();
     }
 }

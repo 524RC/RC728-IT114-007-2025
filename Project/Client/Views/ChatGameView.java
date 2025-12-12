@@ -56,6 +56,8 @@ public class ChatGameView extends JPanel implements IRoomEvents, IPhaseEvent {
         Client.INSTANCE.registerCallback(this);
     }
 
+    
+
     /**
      * Shows both game and chat views in a split pane.
      * Sets divider to 60% for gameView, 40% for chatView.

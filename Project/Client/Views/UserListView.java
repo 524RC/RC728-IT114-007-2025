@@ -17,18 +17,21 @@ import javax.swing.border.EmptyBorder;
 
 import Project.Client.Client;
 import Project.Client.Interfaces.IConnectionEvents;
+import Project.Client.Interfaces.IEliminationEvent;
 import Project.Client.Interfaces.IPointsEvent;
 import Project.Client.Interfaces.IReadyEvent;
 import Project.Client.Interfaces.IRoomEvents;
 import Project.Client.Interfaces.ITurnEvent;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
+import Project.Client.Interfaces.IMessageEvents;
+
 
 /**
  * UserListView represents a UI component that displays a list of users.
  */
 public class UserListView extends JPanel
-        implements IConnectionEvents, IRoomEvents, IReadyEvent, IPointsEvent, ITurnEvent {
+        implements IConnectionEvents, IRoomEvents, IReadyEvent, IPointsEvent, ITurnEvent, IMessageEvents, IEliminationEvent {
     private final JPanel userListArea;
     private final GridBagConstraints lastConstraints; // Keep track of the last constraints for the glue
     private final HashMap<Long, UserListItem> userItemsMap; // Maintain a map of client IDs to UserListItems
@@ -89,6 +92,9 @@ public class UserListView extends JPanel
         });
     }
 
+
+    
+
     /**
      * Removes a user from the list.
      */
@@ -125,6 +131,23 @@ public class UserListView extends JPanel
         });
     }
 
+      @Override
+public void onUserEliminated(long clientId, boolean isEliminated) {
+
+    LoggerUtil.INSTANCE.info("onUserEliminated fired for clientId=" + clientId + " isEliminated=" + isEliminated);
+
+    SwingUtilities.invokeLater(() -> {
+        UserListItem item = userItemsMap.get(clientId);
+
+        if (item != null) {
+            LoggerUtil.INSTANCE.info("Setting eliminated status on UserListItem id=" + clientId);
+            item.setEliminated(isEliminated);
+        } else {
+            LoggerUtil.INSTANCE.warning("UserListItem not found for eliminated client " + clientId);
+        }
+    });
+}
+
     @Override
     public void onReceiveRoomList(List<String> rooms, String message) {
         // unused
@@ -155,17 +178,21 @@ public class UserListView extends JPanel
     }
 
     @Override
-    public void onTookTurn(long clientId, boolean didtakeCurn) {
-        if (clientId == Constants.DEFAULT_CLIENT_ID) {
-            SwingUtilities.invokeLater(() -> {
-                userItemsMap.values().forEach(u -> u.setTurn(false));// reset all
-            });
-        } else if (userItemsMap.containsKey(clientId)) {
-            SwingUtilities.invokeLater(() -> {
-                userItemsMap.get(clientId).setTurn(didtakeCurn);
-            });
-        }
+public void onTookTurn(long clientId, boolean didTakeTurn) {
+    if (clientId == Constants.DEFAULT_CLIENT_ID) {
+        SwingUtilities.invokeLater(() ->
+            userItemsMap.values().forEach(u -> u.setPending())
+        );
+        return;
     }
+
+    SwingUtilities.invokeLater(() -> {
+        if (userItemsMap.containsKey(clientId)) {
+            if (didTakeTurn) userItemsMap.get(clientId).setTurn(true);
+        }
+    });
+}
+
 
     @Override
     public void onPointsUpdate(long clientId, int points) {
@@ -190,25 +217,57 @@ public class UserListView extends JPanel
     }
 
     @Override
-    public void onReceiveReady(long clientId, boolean isReady, boolean isQuiet) {
-        if (clientId == Constants.DEFAULT_CLIENT_ID) {
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    userItemsMap.values().forEach(u -> u.setTurn(false));// reset all
-                } catch (Exception e) {
-                    LoggerUtil.INSTANCE.severe("Error resetting user items", e);
-                }
-            });
-        } else if (userItemsMap.containsKey(clientId)) {
+public void onReceiveReady(long clientId, boolean isReady, boolean isQuiet) {
+    SwingUtilities.invokeLater(() -> {
 
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    LoggerUtil.INSTANCE.info("Setting user item ready for id " + clientId + " to " + isReady);
-                    userItemsMap.get(clientId).setTurn(isReady, Color.GRAY);
-                } catch (Exception e) {
-                    LoggerUtil.INSTANCE.severe("Error setting user item", e);
-                }
-            });
+
+        if (clientId == Constants.DEFAULT_CLIENT_ID) {
+            userItemsMap.values().forEach(u -> u.setPending());
+            return;
         }
+
+        // Show READY in the scoreboard
+        if (userItemsMap.containsKey(clientId)) {
+            userItemsMap.get(clientId).setReady(isReady);
+        }
+    });
+}
+
+
+ // UserListView.java - Inside onMessageReceive()
+// UserListView.java - CORRECTED onMessageReceive()
+
+
+@Override
+public void onMessageReceive(long clientId, String message) {
+/*
+    if (message != null && message.startsWith("ELIMINATED:")) {
+
+        SwingUtilities.invokeLater(() -> {
+
+            System.out.println("DEBUG: UserListView received elimination message: " + message);
+            System.out.println("DEBUG: userItemsMap keys: " + userItemsMap.keySet());   // <--- ADD HERE
+
+            try {
+                int colonIndex = message.indexOf(":");
+                String idString = message.substring(colonIndex + 1).trim();
+                long id = Long.parseLong(idString);
+
+                UserListItem item = userItemsMap.get(id);
+                if (item != null) {
+                    System.out.println("DEBUG: Found user " + id + ", setting eliminated = true");
+                    item.setEliminated(true);
+                } else {
+                    System.out.println("DEBUG: Could NOT find user " + id + " in map!");
+                }
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Failed to parse elimination message: " + message, e);
+            }
+        });
+
+        return;
     }
+         */
+}
+ 
 }

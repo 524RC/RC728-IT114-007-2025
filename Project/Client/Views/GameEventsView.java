@@ -125,6 +125,7 @@ public class GameEventsView extends JPanel implements IPhaseEvent, IReadyEvent, 
         }
     }
 
+    //rc728 12/11/25
     @Override
     public void onTimerUpdate(TimerType timerType, int time) {
         if (time >= 0) {

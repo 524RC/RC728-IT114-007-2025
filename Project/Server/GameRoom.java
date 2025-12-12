@@ -2,29 +2,35 @@ package Project.Server;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 import Project.Common.ChoicePayload;
 import Project.Common.ChoicePayload.Choice;
 import Project.Common.Constants;
+import Project.Common.EliminationPayload;
 import Project.Common.LoggerUtil;
 import Project.Common.Phase;
 import Project.Common.PointsPayload;
 import Project.Common.TimedEvent;
 import Project.Common.TimerType;
+import Project.Common.User;
+import Project.Common.Payload;
+import Project.Common.PayloadType;
 import Project.Exceptions.MissingCurrentPlayerException;
 import Project.Exceptions.NotPlayersTurnException;
 import Project.Exceptions.NotReadyException;
 import Project.Exceptions.PhaseMismatchException;
 import Project.Exceptions.PlayerNotFoundException;
 
+
 public class GameRoom extends BaseGameRoom {
 
     private final Map<Long, ChoicePayload.Choice> playerChoices = new HashMap<>();
-    private final Map<Long, Boolean> eliminated = new HashMap<>();
     private final Map<Long, Integer> points = new HashMap<>();
 
 
@@ -32,29 +38,56 @@ public class GameRoom extends BaseGameRoom {
     private TimedEvent roundTimer = null;
 
     // used for granular turn handling (usually turn-order turns)
-    private TimedEvent turnTimer = null;
-    private List<ServerThread> turnOrder = new ArrayList<>();
-    private long currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
+
     private int round = 0;
+    private boolean extrasEnabled = false;   // Toggles Electric + Rock
+    private long creatorId = -1;
 
     public GameRoom(String name) {
         super(name);
     }
 
+
+    @Override
+    protected void onTurnStart() {
+        // Turn-based system removed — no action needed.
+    }
+    @Override
+    protected void onTurnEnd() {
+    // Turn-based system removed — no action needed.
+    }
+    
+    private void broadcastHost() {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.HOST_INFO);
+        p.setMessage(String.valueOf(creatorId));
+        relayPayload(p);
+    }
+    public void toggleExtras() {
+        extrasEnabled = !extrasEnabled;
+        relay(null, "Extra Options (Electric + Rock): " +
+                (extrasEnabled ? "ENABLED" : "DISABLED"));
+        broadcastChoiceMode();  
+    }
     /** {@inheritDoc} */
     @Override
     protected void onClientAdded(ServerThread sp) {
         // sync GameRoom state to new client
+        if (creatorId == -1) {
+            creatorId = sp.getClientId();
+            relay(null, sp.getClientName() + " is the session creator.");
+        }
+        broadcastHost();
 
         syncCurrentPhase(sp);
-        // sync only what's necessary for the specific phase
-        // if you blindly sync everything, you'll get visual artifacts/discrepancies
+
         syncReadyStatus(sp);
         if (currentPhase != Phase.READY) {
-            syncTurnStatus(sp); // turn/ready use the same visual process so ensure turn status is only called
+            syncTurnStatus(sp); 
             syncTurnStatus(sp);
-            // outside of ready phase
             syncPlayerPoints(sp);
+            // outside of ready phase
+
         }
 
     }
@@ -66,18 +99,15 @@ public class GameRoom extends BaseGameRoom {
         // Stops the timers so room can clean up
         LoggerUtil.INSTANCE.info("Player Removed, remaining: " + clientsInRoom.size());
         long removedClient = sp.getClientId();
-        turnOrder.removeIf(player -> player.getClientId() == sp.getClientId());
         if (clientsInRoom.isEmpty()) {
             resetReadyTimer();
-            resetTurnTimer();
             resetRoundTimer();
             onSessionEnd();
-        } else if (removedClient == currentTurnClientId) {
-            onTurnStart();
-        }
+        } 
     }
 
     // timer handlers
+    //rc728 12/11/25
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, () -> onRoundEnd());
         roundTimer.setTickCallback((time) -> {
@@ -94,49 +124,66 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
-    private void startTurnTimer() {
-        turnTimer = new TimedEvent(30, () -> onTurnEnd());
-        turnTimer.setTickCallback((time) -> {
-            System.out.println("Turn Time: " + time);
-            sendCurrentTime(TimerType.TURN, time);
+    // end timer handlers
+    //rc728 12/11/25
+    private void syncPointsToAll() {
+        for (Map.Entry<Long, Integer> entry : points.entrySet()) {
+            long playerId = entry.getKey();
+            int pts       = entry.getValue();
+
+            ServerThread sp = clientsInRoom.get(playerId);
+            if (sp != null) {
+                // store the total on the ServerThread's User
+                sp.setPoints(pts);
+                // broadcast a PointsPayload to everyone
+                sendPlayerPoints(sp);
+            }
+        }
+    }
+
+    private void sendPlayerPoints(ServerThread sp) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendPlayerPoints(sp.getClientId(), sp.getPoints());
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
         });
     }
 
-    private void resetTurnTimer() {
-        if (turnTimer != null) {
-            turnTimer.cancel();
-            turnTimer = null;
-            sendCurrentTime(TimerType.TURN, -1);
-        }
-    }
-    // end timer handlers
-//rc728 11/26/25
-     private void syncPointsToAll() {
-    for (Map.Entry<Long, Integer> entry : points.entrySet()) {
-        long clientId = entry.getKey();
-        int pts = entry.getValue();
-
-        String message = String.format("POINTS_UPDATE:%d:%d", clientId, pts);
-        relay(null, message);
-        }
-    }
-
     public enum BattleResult { ATTACKER_WINS, DEFENDER_WINS, TIE }
+    
+    //rc728 12/11/25
+    private BattleResult resolveBattle(Choice a, Choice b) {
+        if (a == b) return BattleResult.TIE;
+        switch (a) {
+            case FIRE:
+            if (b == Choice.GRASS) return BattleResult.ATTACKER_WINS;
+            if (b == Choice.ELECTRIC) return BattleResult.TIE;  // NEW
+            return BattleResult.DEFENDER_WINS;
 
-    private BattleResult resolveBattle(ChoicePayload.Choice aChoice, ChoicePayload.Choice dChoice){
-        if (aChoice.equals(dChoice)) return BattleResult.TIE;
+            case WATER:
+                if (b == Choice.FIRE || b == Choice.ROCK) return BattleResult.ATTACKER_WINS;
+                return BattleResult.DEFENDER_WINS;
 
-        if (aChoice == Choice.SCISSORS && dChoice == Choice.PAPER){
-             return BattleResult.ATTACKER_WINS;
+            case GRASS:
+                if (b == Choice.WATER || b == Choice.ROCK) return BattleResult.ATTACKER_WINS;
+                if (b == Choice.ELECTRIC) return BattleResult.TIE;  // NEW
+                return BattleResult.DEFENDER_WINS;
+
+            case ELECTRIC:
+                if (b == Choice.WATER) return BattleResult.ATTACKER_WINS;
+                if (b == Choice.FIRE || b == Choice.GRASS) return BattleResult.TIE; // NEW
+                return BattleResult.DEFENDER_WINS;
+
+            case ROCK:
+                if (b == Choice.FIRE || b == Choice.ELECTRIC) return BattleResult.ATTACKER_WINS;
+                return BattleResult.DEFENDER_WINS;
         }
-        if (aChoice == Choice.PAPER && dChoice == Choice.ROCK){
-            return BattleResult.ATTACKER_WINS;
-        } 
-        if (aChoice == Choice.ROCK && dChoice == Choice.SCISSORS){
-            return BattleResult.ATTACKER_WINS;
-        }
-        return BattleResult.DEFENDER_WINS;
+        return BattleResult.TIE;
     }
+
+
     private String getClientNameById(long id) {
         ServerThread p = clientsInRoom.get(id);
         if (p == null){
@@ -145,262 +192,297 @@ public class GameRoom extends BaseGameRoom {
         return p.getClientName();
     }
 
-    private void processBattles() {
-    //rc728 11/26/25
-    // get all active players
+private void syncPlayerEliminationStatus(ServerThread incomingClient) {
+    clientsInRoom.values().forEach(serverUser -> {
+        if (serverUser.getClientId() != incomingClient.getClientId()) {
+            boolean failedToSync = !incomingClient.sendPlayerEliminationStatus(
+                serverUser.getClientId(),
+                serverUser.getUser().isEliminated()
+            );
+            if (failedToSync) {
+                LoggerUtil.INSTANCE.warning(
+                    String.format("Removing disconnected %s from list", serverUser.getDisplayName()));
+                disconnect(serverUser);
+            }
+        }
+    });
+}
+private void sendPlayerEliminationStatus(ServerThread sp) {
+    clientsInRoom.values().removeIf(spInRoom -> {
+        boolean failedToSend = !spInRoom.sendPlayerEliminationStatus(
+            sp.getClientId(),
+            sp.getUser().isEliminated()
+        );
+        if (failedToSend) {
+            removeClient(spInRoom);
+        }
+        return failedToSend;
+    });
+}
+
+//rc728 12/11/25
+private void processBattles() {
+
     List<Long> active = clientsInRoom.values().stream()
             .map(ServerThread::getClientId)
-            .filter(id -> !eliminated.getOrDefault(id, false))
+            .filter(id -> !clientsInRoom.get(id).getUser().isEliminated())
             .collect(Collectors.toList());
 
     int n = active.size();
-
-
-    if (n <= 1) {
-        if (n == 1) {
-            relay(null, "Winner is: " + getClientNameById(active.get(0)));
-        } else {
-            relay(null, "All players eliminated. It's a tie!");
-        }
-        onSessionEnd();
-        LoggerUtil.INSTANCE.info("processBattles() end: early termination");
-        return;
-    }
+    if (n <= 1) return;
 
     for (Long id : active) {
         points.putIfAbsent(id, 0);
+    }
+
+    Map<Long, Integer> roundPoints = new HashMap<>();
+    Map<Long, Boolean> lost = new HashMap<>();
+
+    for (Long id : active) {
+        roundPoints.put(id, 0);
+        lost.put(id, false);
+    }
 
     for (int i = 0; i < n; i++) {
+        long p1 = active.get(i);
+        Choice c1 = playerChoices.get(p1);
 
-        long attacker = active.get(i);
-        long defender = active.get((i + 1) % n);      // next player
-        long prevAttacker = active.get((i - 1 + n) % n);
+        for (int j = i + 1; j < n; j++) {
 
-        Choice aChoice = playerChoices.get(attacker);
-        Choice dChoice = playerChoices.get(defender);
-        Choice prevChoice = playerChoices.get(prevAttacker);
+            long p2 = active.get(j);
+            Choice c2 = playerChoices.get(p2);
 
-        //  Battle 1: attacker -> defender 
-        BattleResult attackResult = resolveBattle(aChoice, dChoice);
+            BattleResult r = resolveBattle(c1, c2);
 
-        relay(null, String.format(
-            "Battle: %s(%s) attacks %s(%s) → %s",
-            getClientNameById(attacker), aChoice,
-            getClientNameById(defender), dChoice,
-            attackResult
-        ));
-
-        if (attackResult == BattleResult.ATTACKER_WINS) {
-            eliminated.put(defender, true);
-            points.put(attacker, points.get(attacker) + 1);
-        } else if (attackResult == BattleResult.DEFENDER_WINS) {
-            eliminated.put(attacker, true);
-            points.put(defender, points.get(defender) + 1);
+            if (r == BattleResult.ATTACKER_WINS) {
+                roundPoints.put(p1, roundPoints.get(p1) + 1);
+                lost.put(p2, true);
+            } else if (r == BattleResult.DEFENDER_WINS) {
+                roundPoints.put(p2, roundPoints.get(p2) + 1);
+                lost.put(p1, true);
+            }
         }
+    }
 
-        // Skip second battle if someone was eliminated in battle 1
-        if (eliminated.getOrDefault(attacker, false)
-         || eliminated.getOrDefault(prevAttacker, false)) {
+    for (Long id : active) {
+        points.put(id, points.get(id) + roundPoints.get(id));
+    }
+
+    for (Long id : active) {
+
+        boolean lostThisRound = lost.get(id);
+        boolean wonThisRound = roundPoints.get(id) > 0;
+
+        if (!lostThisRound && !wonThisRound) {
             continue;
         }
 
-        // Battle 2: previous player attacks current player 
-        BattleResult defendResult = resolveBattle(prevChoice, aChoice);
-
-        relay(null, String.format(
-            "Battle: %s(%s) attacks %s(%s) → %s",
-            getClientNameById(prevAttacker), prevChoice,
-            getClientNameById(attacker), aChoice,
-            defendResult
-            ));
-
-        if (defendResult == BattleResult.ATTACKER_WINS) {
-                eliminated.put(attacker, true);
-                points.put(prevAttacker, points.get(prevAttacker) + 1);
-        }else if (defendResult == BattleResult.DEFENDER_WINS) {
-                eliminated.put(prevAttacker, true);
-                points.put(attacker, points.get(attacker) + 1);
+        if (lostThisRound && !wonThisRound) {
+            ServerThread sp = clientsInRoom.get(id);
+            sp.getUser().setEliminated(true);
+            sendPlayerEliminationStatus(sp);
+            relay(null, sp.getClientName() + " was eliminated!");
         }
     }
 
-        syncPointsToAll();
-    }
+    syncPointsToAll();
 }
-    // lifecycle methods
+
+
+    private void eliminatePlayer(long id) {
+        ServerThread player = clientsInRoom.get(id);
+        if (player == null) {
+            return; 
+        }
+
+        if (!player.getUser().isEliminated()) {
+            player.getUser().setEliminated(true);   
+            sendPlayerEliminationStatus(player);  
+            relay(null, player.getClientName() + " was eliminated."); 
+        }
+    }
+
+   // lifecycle methods
 
     /** {@inheritDoc} */
     @Override
     protected void onSessionStart() {
         LoggerUtil.INSTANCE.info("onSessionStart() start");
+
         round = 0;
+        points.clear();
+
+        // everyone starts at 0
+        clientsInRoom.values().forEach(sp -> {
+           sp.setPoints(0);
+           points.put(sp.getClientId(), 0);
+           sendPlayerPoints(sp);
+        });
+
         changePhase(Phase.IN_PROGRESS);
-        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
-        setTurnOrder();
-        round = 0;
         LoggerUtil.INSTANCE.info("onSessionStart() end");
         onRoundStart();
     }
 
+
     /** {@inheritDoc} */
-    //Rc728 11/24/25
+    //Rc728 12/11/25
     @Override
     protected void onRoundStart() {
         LoggerUtil.INSTANCE.info("onRoundStart() start");
+        clientsInRoom.values().forEach(p -> p.setTookTurn(false));
+        sendResetTurnStatus();
         resetRoundTimer();
-        resetTurnStatus();
         round++;
-        // relay(null, String.format("Round %d has started", round));
-        sendGameEvent(String.format("Round %d has started", round));
-        // startRoundTimer(); Round timers aren't needed for turns
-        // if you do decide to use it, ensure it's reasonable and based on the number of
-        // players
+
+        sendGameEvent("Round " + round + " has started");
+
+        // Reset choices only for surviving players
         for (ServerThread p : clientsInRoom.values()) {
             long id = p.getClientId();
-            if (!eliminated.getOrDefault(id, false)) {
+
+            if (!p.getUser().isEliminated()) {
                 playerChoices.put(id, null);
-            }                  
+            }
         }
+
         changePhase(Phase.CHOOSING);
-        relay(null, "You're on round " + round);
         startRoundTimer();
+
         LoggerUtil.INSTANCE.info("onRoundStart() end");
-        onTurnStart();
     }
 
-    /** {@inheritDoc} */
-    @Override
-    protected void onTurnStart() {
-        LoggerUtil.INSTANCE.info("onTurnStart() start");
-        resetTurnTimer();
-        try {
-            ServerThread currentPlayer = getNextPlayer();
-            // relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
-            sendGameEvent(String.format("It's %s's turn", currentPlayer.getDisplayName()));
-        } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
+    private void broadcastChoiceMode() {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.CHOICE_MODE);
+        p.setMessage(extrasEnabled ? "5" : "3"); // 5 moves OR 3 moves
+        relayPayload(p);  
+    }
 
-            e.printStackTrace();
+    public void toggleExtraOptions(ServerThread sender) {
+        if (sender.getClientId() != creatorId) {
+            sender.sendMessage(Constants.DEFAULT_CLIENT_ID,
+                "Only the session creator can toggle extra options.");
+            return;
         }
-        startTurnTimer();
-        LoggerUtil.INSTANCE.info("onTurnStart() end");
-    }
 
+        if (currentPhase != Phase.READY) {
+            sender.sendMessage(Constants.DEFAULT_CLIENT_ID,
+                "You may only toggle during READY phase.");
+            return;
+        }
+
+        extrasEnabled = !extrasEnabled;
+
+        relay(null, "Extra Options (Electric + Rock): " + 
+                    (extrasEnabled ? "ENABLED" : "DISABLED"));
+
+        broadcastChoiceMode();
+}
+    /** {@inheritDoc} */
+    
     // Note: logic between Turn Start and Turn End is typically handled via timers
     // and user interaction
     /** {@inheritDoc} */
-    @Override
-    protected void onTurnEnd() {
-        LoggerUtil.INSTANCE.info("onTurnEnd() start");
-        resetTurnTimer(); // reset timer if turn ended without the time expiring
-        try {
-            // optionally can use checkAllTookTurn();
-            if (isLastPlayer()) {
-                // if the current player is the last player in the turn order, end the round
-                onRoundEnd();
-            } else {
-                onTurnStart();
-            }
-        } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
-
-            e.printStackTrace();
-        }
-        LoggerUtil.INSTANCE.info("onTurnEnd() end");
-    }
-        private void checkAllChoicesMade() {
-        boolean allChosen = clientsInRoom.values().stream()
-        .map(ServerThread::getClientId)
-        .filter(id -> !eliminated.getOrDefault(id, false))
-        .allMatch(id -> playerChoices.get(id) != null);
-        if (allChosen) {
-            onRoundEnd();
-        }
-    }
 
     // Note: logic between Round Start and Round End is typically handled via timers
     // and user interaction
     /** {@inheritDoc} */
+
+    //Rc728 12/11/25
     @Override
     protected void onRoundEnd() {
         LoggerUtil.INSTANCE.info("onRoundEnd() start");
-        resetRoundTimer(); // reset timer if round ended without the time expiring
-        
-    // Round timer should not continue into next round
         resetRoundTimer();
 
-    // Condition from spec:
-    // Mark players who did NOT submit a choice as eliminated.
         for (ServerThread p : clientsInRoom.values()) {
             long id = p.getClientId();
-            boolean isEliminated = eliminated.getOrDefault(id, false);
+            boolean isEliminated = p.getUser().isEliminated();
             boolean madeChoice = playerChoices.get(id) != null;
 
             if (!isEliminated && !madeChoice) {
-                eliminated.put(id, true);
-                relay(null, p.getClientName() + " was eliminated (no choice submitted).");
+                ServerThread eliminatedPlayer = clientsInRoom.get(id); 
+                if (eliminatedPlayer != null && !eliminatedPlayer.getUser().isEliminated()) {
+                    eliminatedPlayer.getUser().setEliminated(true);
+                    sendPlayerEliminationStatus(eliminatedPlayer); 
+                    relay(null, p.getClientName() + " was eliminated (no choice submitted).");
+                }
             }
         }
         processBattles();
-
         LoggerUtil.INSTANCE.info("onRoundEnd() end");
-         long survivors = eliminated.values().stream().filter(e -> !e).count();
-
+        long survivors = clientsInRoom.values().stream()
+            .map(ServerThread::getClientId)
+            .filter(id -> !clientsInRoom.get(id).getUser().isEliminated())
+            .count();
         if (survivors <= 1 || round >= 3) {
             onSessionEnd();
             return;
         }
-
         onRoundStart();
     }
 
+//rc728 12/11/25
+  @Override
+protected void onSessionEnd() {
+    LoggerUtil.INSTANCE.info("onSessionEnd() start");
 
-    /** {@inheritDoc} */
-    @Override
-    protected void onSessionEnd() {
-        LoggerUtil.INSTANCE.info("onSessionEnd() start");
-        turnOrder.clear();
-        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
-        resetReadyStatus();
-        resetTurnStatus();
-        changePhase(Phase.READY); 
-        List<Long> survivors = eliminated.entrySet().stream()
-            .filter(e -> !e.getValue())
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+    List<Long> survivors = clientsInRoom.values().stream()
+        .filter(p -> !p.getUser().isEliminated())
+        .map(ServerThread::getClientId)
+        .collect(Collectors.toList());
 
-        long survivorCount = survivors.size();
+    long survivorCount = survivors.size();
 
-        if (survivorCount == 1) {
-            long winnerId = survivors.get(0);
-            relay(null, "GAME OVER: Winner is " + getClientNameById(winnerId));
-        } else if (survivorCount == 0) {
-            relay(null, "GAME OVER: All players eliminated — it's a tie!");
-        }
-
-        List<Map.Entry<Long, Integer>> sortedScores = points.entrySet().stream()
-            .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
-            .collect(Collectors.toList());
-
-        relay(null, "=== FINAL SCOREBOARD ===");
-        for (Map.Entry<Long, Integer> entry : sortedScores) {
-            relay(null, getClientNameById(entry.getKey()) + ": " + entry.getValue() + " points");
-        }
-        relay(null, "");
-
-        points.clear();
-        eliminated.clear();
-        playerChoices.clear();
-
-        sendResetTurnStatus();                // clears tookTurn flags client-side
-        clientsInRoom.values().forEach(sp -> sp.sendMessage(
-            Constants.DEFAULT_CLIENT_ID,
-            "RESET_DATA"                 // tells client to reset its UI/state
-        ));
-
-        resetReadyStatus();                   // marks all players as NOT READY
-        changePhase(Phase.READY);
-
-        LoggerUtil.INSTANCE.info("onSessionEnd() end");
-        
+    if (survivorCount == 1) {
+        long winnerId = survivors.get(0);
+        relay(null, "GAME OVER: Winner is " + getClientNameById(winnerId));
+    } else if (survivorCount == 0) {
+        relay(null, "GAME OVER: All players eliminated — it's a tie!");
     }
+
+    List<Map.Entry<Long, Integer>> sortedScores = points.entrySet().stream()
+        .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+        .collect(Collectors.toList());
+
+    relay(null, "=== FINAL SCOREBOARD ===");
+    for (Map.Entry<Long, Integer> entry : sortedScores) {
+        relay(null, getClientNameById(entry.getKey()) + ": " + entry.getValue() + " points");
+    }
+    relay(null, "");
+
+    round = 0;
+    points.clear();
+    playerChoices.clear();
+
+    clientsInRoom.values().forEach(sp -> sp.getUser().setEliminated(false));
+
+    clientsInRoom.values().forEach(sp -> {
+        sendPlayerEliminationStatus(sp);  
+    });
+
+    sendResetTurnStatus();
+
+    clientsInRoom.values().forEach(sp ->
+        sp.sendMessage(Constants.DEFAULT_CLIENT_ID, "RESET_DATA")
+    );
+
+    resetReadyStatus();
+    changePhase(Phase.READY);
+
+    LoggerUtil.INSTANCE.info("onSessionEnd() end");
+}
+    private void checkAllChoicesMade() {
+    boolean allChosen = clientsInRoom.values().stream()
+        .map(ServerThread::getClientId)
+        .filter(id -> !clientsInRoom.get(id).getUser().isEliminated())
+        .allMatch(id -> playerChoices.get(id) != null);
+
+    if (allChosen) {
+        onRoundEnd();
+    }
+}
+
     // GameRoom.java - Add this new method
     /**
      * Called by ServerThread when a client sends a ChoicePayload.
@@ -415,16 +497,23 @@ public class GameRoom extends BaseGameRoom {
      * * @param currentUser
      * @param payload
      */
-    //Rc728 11/26/25
+    //Rc728 12/11/25
     public void handleChoiceAction(ServerThread currentUser, ChoicePayload payload) {
         try {
             checkPlayerInRoom(currentUser);
-           
+            checkCurrentPhase(currentUser, Phase.CHOOSING);
+            checkIsReady(currentUser);
 
-            if (currentUser.didTakeTurn()) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
+            if (currentUser.getUser().isEliminated()) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+                "You have been eliminated and cannot pick.");
+            return; 
+            }
+            if (playerChoices.get(currentUser.getClientId()) != null) {
+                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You already selected this round.");
                 return;
             }
+
 
             playerChoices.put(currentUser.getClientId(), payload.getChoice());
 
@@ -453,6 +542,7 @@ public class GameRoom extends BaseGameRoom {
     
         // end lifecycle methods
 
+
     // send/sync data to ServerThread(s)
     private void syncPlayerPoints(ServerThread incomingClient) {
         clientsInRoom.values().forEach(serverUser -> {
@@ -468,16 +558,8 @@ public class GameRoom extends BaseGameRoom {
         });
     }
 
-    private void sendPlayerPoints(ServerThread sp) {
-        clientsInRoom.values().removeIf(spInRoom -> {
-            boolean failedToSend = !spInRoom.sendPlayerPoints(sp.getClientId(), sp.getPoints());
-            if (failedToSend) {
-                removeClient(spInRoom);
-            }
-            return failedToSend;
-        });
-    }
-
+    
+    //Rc728 12/11/25
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
             boolean failedToSend = !spInRoom.sendResetTurnStatus();
@@ -524,12 +606,6 @@ public class GameRoom extends BaseGameRoom {
     /**
      * Sets `turnOrder` to a shuffled list of players who are ready.
      */
-    private void setTurnOrder() {
-        turnOrder.clear();
-        turnOrder = clientsInRoom.values().stream().filter(ServerThread::isReady).collect(Collectors.toList());
-        Collections.shuffle(turnOrder);
-    }
-
     /**
      * Gets the current player based on the `currentTurnClientId`.
      * 
@@ -537,18 +613,6 @@ public class GameRoom extends BaseGameRoom {
      * @throws MissingCurrentPlayerException
      * @throws PlayerNotFoundException
      */
-    private ServerThread getCurrentPlayer() throws MissingCurrentPlayerException, PlayerNotFoundException {
-        // quick early exit
-        if (currentTurnClientId == Constants.DEFAULT_CLIENT_ID) {
-            throw new MissingCurrentPlayerException("Current Player not set");
-        }
-        return turnOrder.stream()
-                .filter(sp -> sp.getClientId() == currentTurnClientId)
-                .findFirst()
-                // this shouldn't occur but is included as a "just in case"
-                .orElseThrow(() -> new PlayerNotFoundException("Current player not found in turn order"));
-    }
-
     /**
      * Gets the next player in the turn order.
      * If the current player is the last in the turn order, it wraps around
@@ -558,56 +622,7 @@ public class GameRoom extends BaseGameRoom {
      * @throws MissingCurrentPlayerException
      * @throws PlayerNotFoundException
      */
-    private ServerThread getNextPlayer() throws MissingCurrentPlayerException, PlayerNotFoundException {
-        int index = 0;
-        if (currentTurnClientId != Constants.DEFAULT_CLIENT_ID) {
-            index = turnOrder.indexOf(getCurrentPlayer()) + 1;
-            if (index >= turnOrder.size()) {
-                index = 0;
-            }
-        }
-        ServerThread nextPlayer = turnOrder.get(index);
-        currentTurnClientId = nextPlayer.getClientId();
-        return nextPlayer;
-    }
-
-    /**
-     * Checks if the current player is the last player in the turn order.
-     * 
-     * @return
-     * @throws MissingCurrentPlayerException
-     * @throws PlayerNotFoundException
-     */
-    private boolean isLastPlayer() throws MissingCurrentPlayerException, PlayerNotFoundException {
-        // check if the current player is the last player in the turn order
-        return turnOrder.indexOf(getCurrentPlayer()) == (turnOrder.size() - 1);
-    }
-
-    private void checkAllTookTurn() {
-        int numReady = clientsInRoom.values().stream()
-                .filter(sp -> sp.isReady())
-                .toList().size();
-        int numTookTurn = clientsInRoom.values().stream()
-                // ensure to verify the isReady part since it's against the original list
-                .filter(sp -> sp.isReady() && sp.didTakeTurn())
-                .toList().size();
-        if (numReady == numTookTurn) {
-            //relay(null,
-            // String.format("All players have taken their turn (%d/%d) ending the round",
-            // numTookTurn, numReady));
-            sendGameEvent(
-                    String.format("All players have taken their turn (%d/%d) ending the round", numTookTurn, numReady));
-            onRoundEnd();
-        }
-    }
-
     // start check methods
-    private void checkCurrentPlayer(long clientId) throws NotPlayersTurnException {
-        if (currentTurnClientId != clientId) {
-            throw new NotPlayersTurnException("You are not the current player");
-        }
-    }
-
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
@@ -619,51 +634,6 @@ public class GameRoom extends BaseGameRoom {
      * @param exampleText (arbitrary text from the client, can be used for
      *                    additional actions or information)
      */
-    protected void handleTurnAction(ServerThread currentUser, String exampleText) {
-        // check if the client is in the room
-        try {
-            checkPlayerInRoom(currentUser);
-            checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
-            checkCurrentPlayer(currentUser.getClientId());
-            checkIsReady(currentUser);
-            if (currentUser.didTakeTurn()) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
-                return;
-            }
-            // example points
-            int points = new Random().nextInt(4) == 3 ? 1 : 0;
-            sendGameEvent(String.format("%s %s", currentUser.getDisplayName(),
-                    points > 0 ? "gained a point" : "didn't gain a point"));
-            if (points > 0) {
-                currentUser.changePoints(points);
-                sendPlayerPoints(currentUser);
-            }
-            currentUser.setTookTurn(true);
-            sendTurnStatus(currentUser, currentUser.didTakeTurn());
-
-            // TODO handle example text possibly or other turn related intention from client
-            sendTurnStatus(currentUser, currentUser.didTakeTurn());
-            // finished processing the turn
-            onTurnEnd();
-            checkAllTookTurn();
-
-        } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (NotReadyException e) {
-            // The check method already informs the currentUser
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
-                    "You can only take a turn during the IN_PROGRESS phase");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        }
-    }
 
     // end receive data from ServerThread (GameRoom specific)
 }

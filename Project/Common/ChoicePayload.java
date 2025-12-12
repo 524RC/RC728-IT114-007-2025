@@ -5,7 +5,7 @@ import java.util.Objects;
 public class ChoicePayload extends Payload {
 
     public enum Choice {
-        ROCK, PAPER, SCISSORS
+        FIRE, GRASS, WATER, ELECTRIC, ROCK
     }
 
     private Choice choice;
