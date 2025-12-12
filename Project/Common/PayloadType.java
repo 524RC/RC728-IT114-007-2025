@@ -25,6 +25,7 @@ public enum PayloadType {
     TURN, // example of taking a turn and syncing a turn action
     SYNC_TURN, // quiet version of TURN, used to sync existing turn status of clients in a
                   // GameRoom
-    RESET_TURN; // trigger to tell client to reset their local list turn status; // syncs current phase of session (used as a switch to only allow certain logic
+    RESET_TURN,
+    TIME,; // trigger to tell client to reset their local list turn status; // syncs current phase of session (used as a switch to only allow certain logic
            // to execute)
 }
