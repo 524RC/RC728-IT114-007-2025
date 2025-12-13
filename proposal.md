@@ -1,17 +1,17 @@
 ## Project Name: Rock Paper Scissors
 ### Project Summary: Group RPS (2+ players). Battles are compared clockwise (A -> B, B -> C, C -> A), you determine if elimination occurs during attack (ex. A -> B) or defense (ex. C -> A). Points will be tracked for wins, but session ends with “last person standing”.
-### Github Link: (main branch with your final project)
-### Your Name:
-### Course/Section:
+### Github Link: https://github.com/524RC/RC728-IT114-007-2025/tree/main
+### Your Name: Ryan Chung
+### Course/Section: IT114-007
  
  
 ### Proposal Checklist and Evidence
 
 - Milestone 1
-  - (add link to milestone1.pdf from milestone1 branch)  
+  - https://github.com/524RC/RC728-IT114-007-2025/blob/Milestone2_PDF/RChungMilestone1.pdf
 - Milestone 2
-  - (add link to milestone2.pdf from milestone2 branch)
+  - https://github.com/524RC/RC728-IT114-007-2025/blob/Milestone2_PDF/RChungMilestone2.pdf
 - Milestone 3
-  - (add link to milestone3.pdf from milestone3 branch)
+  - https://github.com/524RC/RC728-IT114-007-2025/blob/Milestone2_PDF/RChungMilestone3.pdf
 - Demo Link
-  - (add youtube link to unlisted or public demo) Note you'll need to verify your youtube account to upload videos > 15mins
+  - https://youtu.be/cYPrbZSW71Y
